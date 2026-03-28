@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+ml_env/
+.env
+
+# Models (too large)
+*.h5
+*.pth
+
+# Dataset images (too large)
+dataset/
+outputs/
+
+# Node
+node_modules/
+dist/

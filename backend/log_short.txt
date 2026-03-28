@@ -1,0 +1,148 @@
+.FFFFF.....F.                                                            [100%]
+================================== FAILURES ===================================
+______________________________ test_admin_stats _______________________________
+venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+venv\Lib\site-packages\starlette\middleware\cors.py:87: in __call__
+    await self.app(scope, receive, send)
+venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+venv\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+venv\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+venv\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+venv\Lib\site-packages\fastapi\routing.py:130: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+venv\Lib\site-packages\fastapi\routing.py:116: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\fastapi\routing.py:670: in app
+    raw_response = await run_endpoint_function(
+venv\Lib\site-packages\fastapi\routing.py:324: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+routes\admin.py:30: in get_stats
+    stats = get_stats()
+            ^^^^^^^^^^^
+E   TypeError: get_stats() missing 1 required positional argument: 'request'
+
+During handling of the above exception, another exception occurred:
+tests\test_admin.py:23: in test_admin_stats
+    response = client.get("/api/admin/stats")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\starlette\testclient.py:473: in get
+    return super().get(
+venv\Lib\site-packages\httpx\_client.py:1053: in get
+    return self.request(
+venv\Lib\site-packages\starlette\testclient.py:445: in request
+    return super().request(
+venv\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+venv\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+venv\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\starlette\testclient.py:348: in handle_request
+    raise exc
+venv\Lib\site-packages\starlette\testclient.py:345: in handle_request
+    portal.call(self.app, scope, receive, send)
+venv\Lib\site-packages\anyio\from_thread.py:334: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python313\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Python313\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+venv\Lib\site-packages\anyio\from_thread.py:259: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\fastapi\applications.py:1160: in __call__
+    await super().__call__(scope, receive, send)
+venv\Lib\site-packages\starlette\applications.py:107: in __call__
+    await self.middleware_stack(scope, receive, send)
+venv\Lib\site-packages\starlette\middleware\errors.py:181: in __call__
+    await response(scope, receive, send)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: 'dict' object is not callable
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed
+ERROR    root:main.py:56 Unhandled exception: get_stats() missing 1 required positional argument: 'request'
+___________________________ test_admin_create_user ____________________________
+tests\test_admin.py:36: in test_admin_create_user
+    assert response.json()["success"] is True
+E   assert False is True
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed
+___________________________ test_admin_update_user ____________________________
+tests\test_admin.py:43: in test_admin_update_user
+    assert response.json()["success"] is True
+E   assert False is True
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed
+___________________________ test_admin_delete_user ____________________________
+tests\test_admin.py:48: in test_admin_delete_user
+    assert response.json()["success"] is True
+E   assert False is True
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed
+___________________________ test_require_admin_fail ___________________________
+tests\test_admin.py:54: in test_require_admin_fail
+    assert response.status_code == 403
+E   assert 200 == 403
+E    +  where 200 = <Response [200 OK]>.status_code
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed
+________________________ test_verify_endpoint_success _________________________
+tests\test_verify.py:54: in test_verify_endpoint_success
+    assert data["success"] is True
+E   assert False is True
+------------------------------ Captured log call ------------------------------
+ERROR    middleware.audit_log:audit_log.py:42 Failed to create audit log: [Errno 11001] getaddrinfo failed\nERROR    routes.doctor:doctor.py:145 \u274c Verification endpoint error: 'tf_confidence'
+============================== warnings summary ===============================
+tests/test_admin.py::test_admin_users
+tests/test_admin.py::test_admin_stats
+tests/test_admin.py::test_admin_create_user
+tests/test_admin.py::test_admin_update_user
+tests/test_admin.py::test_admin_delete_user
+tests/test_admin.py::test_require_admin_fail
+tests/test_verify.py::test_verify_endpoint_success
+  D:\ml project\mediverify\backend\middleware\audit_log.py:32: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat()
+
+tests/test_admin.py::test_admin_users
+  D:\ml project\mediverify\backend\venv\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'timeout' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+tests/test_admin.py::test_admin_users
+  D:\ml project\mediverify\backend\venv\Lib\site-packages\supabase\_sync\client.py:309: DeprecationWarning: The 'verify' parameter is deprecated. Please configure it in the http client instead.
+    return SyncPostgrestClient(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_admin.py::test_admin_stats - TypeError: 'dict' object is no...
+FAILED tests/test_admin.py::test_admin_create_user - assert False is True
+FAILED tests/test_admin.py::test_admin_update_user - assert False is True
+FAILED tests/test_admin.py::test_admin_delete_user - assert False is True
+FAILED tests/test_admin.py::test_require_admin_fail - assert 200 == 403
+FAILED tests/test_verify.py::test_verify_endpoint_success - assert False is True
+6 failed, 7 passed, 9 warnings in 6.81s

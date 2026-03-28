@@ -1,0 +1,32 @@
+﻿
+> mediverify-frontend@0.0.0 lint
+> eslint .
+
+
+D:\ml project\mediverify\frontend\src\api\adminApi.ts
+  14:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  21:90  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  35:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\ml project\mediverify\frontend\src\api\doctorApi.ts
+   6:18  error    An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+  61:48  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+
+D:\ml project\mediverify\frontend\src\hooks\useVerify.ts
+  15:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\ml project\mediverify\frontend\src\pages\admin\Dashboard.tsx
+  9:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\ml project\mediverify\frontend\src\pages\admin\Logs.tsx
+  9:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\ml project\mediverify\frontend\src\pages\doctor\Upload.tsx
+  44:18  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\ml project\mediverify\frontend\src\types\api.types.ts
+  1:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 11 problems (2 errors, 9 warnings)
+
