@@ -1,9 +1,7 @@
 # Python
 __pycache__/
 *.pyc
-*.pyo
 ml_env/
-venv/
 .env
 
 # Models (too large)
