@@ -13,91 +13,82 @@ from tensorflow.keras.applications.efficientnet import preprocess_input
 logger = logging.getLogger(__name__)
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TF_MODEL_PATH   = os.path.join(BASE_DIR, "model", "best_model.h5")
-FFT_MODEL_PATH  = os.path.join(BASE_DIR, "model", "best_model_fft.pth")
-TF_CONFIG_PATH  = os.path.join(BASE_DIR, "model", "model_config.json")
-IMG_SIZE        = (224, 224)
-DEVICE          = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BASE_DIR       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TF_MODEL_PATH  = os.path.join(BASE_DIR, "model", "best_model.h5")
+FFT_MODEL_PATH = os.path.join(BASE_DIR, "model", "best_model_fft.pth")
+TF_CONFIG_PATH = os.path.join(BASE_DIR, "model", "model_config.json")
+IMG_SIZE       = (224, 224)
+DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# ── FFT MODEL ARCHITECTURE ─────────────────────────────────────────────────────
-# Must match exactly how the model was trained in train_fft_torch.py
-class FFTBranch(nn.Module):
-    """CNN that processes FFT frequency spectrum images."""
+# ── MODEL ARCHITECTURE ─────────────────────────────────────────────────────────
+# CRITICAL: This must match EXACTLY how the model was trained in train_fft_torch.py
+# Class name, layer sizes, channel counts — all must be identical to the saved .pth
+
+class MediVerifyFFT(nn.Module):
     def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.AdaptiveAvgPool2d(4),
+
+        # Visual branch — EfficientNetB0 feature extractor
+        efficientnet = torchmodels.efficientnet_b0(weights=None)
+        self.visual_branch = nn.Sequential(
+            *list(efficientnet.children())[:-1]
+        )
+        self.visual_fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 4 * 4, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class DualInputFFTModel(nn.Module):
-    """
-    Dual-input model:
-      Branch 1: EfficientNetB0 → 128 features (visual tampering)
-      Branch 2: FFT CNN → 64 features (frequency fingerprints)
-      Merged:   192 → classifier
-    """
-    def __init__(self):
-        super().__init__()
-
-        # Branch 1 — EfficientNetB0 image features
-        efficientnet = torchmodels.efficientnet_b0(pretrained=False)
-        efficientnet.classifier = nn.Sequential(
+            nn.BatchNorm1d(1280),
             nn.Dropout(0.4),
-            nn.Linear(efficientnet.classifier[1].in_features, 128),
-            nn.ReLU(),
+            nn.Linear(1280, 128),
+            nn.ReLU()
         )
-        self.image_branch = efficientnet
 
-        # Branch 2 — FFT frequency features
-        self.fft_branch = FFTBranch()
+        # FFT branch — processes 1-channel 64x64 frequency spectrum
+        self.fft_branch = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
+            nn.AdaptiveAvgPool2d(4),
+            nn.Flatten(),
+            nn.Linear(128 * 4 * 4, 64), nn.ReLU(),
+            nn.Dropout(0.3)
+        )
 
-        # Classifier head
+        # Classifier — 128 visual + 64 FFT = 192 merged features
         self.classifier = nn.Sequential(
-            nn.Linear(192, 64),
-            nn.ReLU(),
+            nn.Linear(128 + 64, 128), nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(64, 1),
-            nn.Sigmoid(),
+            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(64, 1), nn.Sigmoid()
         )
 
     def forward(self, img, fft):
-        img_features = self.image_branch(img)
-        fft_features = self.fft_branch(fft)
-        merged       = torch.cat([img_features, fft_features], dim=1)
-        return self.classifier(merged)
+        x1 = self.visual_branch(img)
+        x1 = self.visual_fc(x1)
+        x2 = self.fft_branch(fft)
+        x  = torch.cat([x1, x2], dim=1)
+        return self.classifier(x).squeeze(1)
 
 
 # ── MODEL LOADING ──────────────────────────────────────────────────────────────
-_tf_model   = None
-_fft_model  = None
+_tf_model      = None
+_fft_model     = None
 _tf_threshold  = 0.3
-_fft_threshold = 0.3
 
 
 def _load_models():
-    global _tf_model, _fft_model, _tf_threshold, _fft_threshold
+    global _tf_model, _fft_model, _tf_threshold
 
-    # Load TF threshold
+    # Load TF threshold from config
     try:
         with open(TF_CONFIG_PATH) as f:
             _tf_threshold = json.load(f).get("confidence_threshold", 0.3)
-        logger.info(f"TF threshold: {_tf_threshold}")
+        logger.info(f"TF threshold loaded: {_tf_threshold}")
     except Exception as e:
-        logger.warning(f"Could not load TF config: {e}, using 0.3")
+        logger.warning(f"Could not load TF config: {e} — using default 0.3")
 
-    # Load TF model
+    # Load TensorFlow EfficientNetB0
     try:
         _tf_model = tf.keras.models.load_model(TF_MODEL_PATH)
         logger.info("✅ TF EfficientNetB0 model loaded")
@@ -106,11 +97,10 @@ def _load_models():
 
     # Load PyTorch FFT model
     try:
-        _fft_model = DualInputFFTModel().to(DEVICE)
-        checkpoint = torch.load(FFT_MODEL_PATH, map_location=DEVICE)
-        # Handle both raw state_dict and wrapped checkpoint
-        state_dict = checkpoint.get("model_state_dict", checkpoint)
-        _fft_model.load_state_dict(state_dict)
+        _fft_model = MediVerifyFFT().to(DEVICE)
+        _fft_model.load_state_dict(
+            torch.load(FFT_MODEL_PATH, map_location=DEVICE)
+        )
         _fft_model.eval()
         logger.info(f"✅ PyTorch FFT model loaded (device: {DEVICE})")
     except Exception as e:
@@ -125,8 +115,12 @@ def get_models():
 
 
 # ── PREPROCESSING ──────────────────────────────────────────────────────────────
+
 def _preprocess_tf(image_bytes: bytes) -> np.ndarray:
-    """Decode → resize → EfficientNet preprocess_input (NOT rescale)."""
+    """
+    Decode image bytes → resize to 224x224 → EfficientNet preprocess_input.
+    CRITICAL: Do NOT use rescale=1./255 — causes double normalization → 50% accuracy.
+    """
     nparr = np.frombuffer(image_bytes, np.uint8)
     img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
@@ -134,55 +128,77 @@ def _preprocess_tf(image_bytes: bytes) -> np.ndarray:
     img = cv2.resize(img, IMG_SIZE)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = img.astype("float32")
-    img = preprocess_input(img)          # ← CRITICAL: do NOT use /255 here
-    return np.expand_dims(img, axis=0)   # shape: (1, 224, 224, 3)
+    img = preprocess_input(img)
+    return np.expand_dims(img, axis=0)  # shape: (1, 224, 224, 3)
 
 
-def _compute_fft(img_rgb: np.ndarray) -> np.ndarray:
+def _compute_fft(img_bgr: np.ndarray) -> np.ndarray:
     """
-    Convert image to FFT frequency spectrum.
-    Returns normalized 3-channel float32 array (224, 224, 3).
+    Convert BGR image to FFT magnitude spectrum.
+    Returns 64x64 single-channel float32 array normalized to [0, 1].
+    Matches extract_fft() in test_combined.py exactly.
     """
-    gray     = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
-    f        = np.fft.fft2(gray)
-    fshift   = np.fft.fftshift(f)
-    mag      = np.log(np.abs(fshift) + 1e-10)
-    mag_norm = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    mag_rgb  = cv2.cvtColor(mag_norm, cv2.COLOR_GRAY2RGB)
-    mag_rgb  = cv2.resize(mag_rgb, IMG_SIZE)
-    return mag_rgb.astype("float32") / 255.0
+    gray      = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    fft       = np.fft.fft2(gray)
+    fft_shift = np.fft.fftshift(fft)
+    magnitude = np.log(np.abs(fft_shift) + 1)
+    magnitude = magnitude / magnitude.max()
+    return cv2.resize(magnitude, (64, 64)).astype('float32')
 
 
 def _preprocess_fft(image_bytes: bytes):
-    """Returns (img_tensor, fft_tensor) ready for PyTorch model."""
+    """
+    Decode image bytes and prepare both tensors for MediVerifyFFT model.
+
+    Returns:
+        img_tensor: (1, 3, 224, 224) — ImageNet normalized
+        fft_tensor: (1, 1, 64, 64)   — FFT magnitude spectrum
+    """
     nparr = np.frombuffer(image_bytes, np.uint8)
     img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Could not decode image")
-    img   = cv2.resize(img, IMG_SIZE)
-    img   = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    # Image tensor: normalize to [0,1], channels first
-    img_norm   = img.astype("float32") / 255.0
-    img_tensor = torch.from_numpy(img_norm).permute(2, 0, 1).unsqueeze(0).to(DEVICE)
+    img_resized = cv2.resize(img, IMG_SIZE)
 
-    # FFT tensor
-    fft_arr    = _compute_fft(img)
-    fft_tensor = torch.from_numpy(fft_arr).permute(2, 0, 1).unsqueeze(0).to(DEVICE)
+    # FFT tensor — 1 channel, 64x64
+    fft        = _compute_fft(img_resized)
+    fft_tensor = torch.from_numpy(fft).unsqueeze(0).unsqueeze(0).to(DEVICE)
 
-    return img_tensor, fft_tensor
+    # Image tensor — ImageNet normalization (matches training)
+    img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+    img_t   = torch.from_numpy(
+        img_rgb.transpose(2, 0, 1)
+    ).float() / 255.0
+    mean    = torch.from_numpy(
+        np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    ).view(3, 1, 1)
+    std     = torch.from_numpy(
+        np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    ).view(3, 1, 1)
+    img_t   = ((img_t - mean) / std).unsqueeze(0).to(DEVICE)
+
+    return img_t, fft_tensor
 
 
 # ── VERDICT LOGIC ──────────────────────────────────────────────────────────────
+
 def _get_verdict(tf_conf: float, fft_conf: float) -> str:
     """
-    Only ML models score the verdict.
-    ELA/noise/metadata are informational only (not used here).
+    Combined verdict from both models.
+    FFT model is weighted higher — it catches AI-generated images
+    that the visual CNN misses entirely.
+
+    Thresholds:
+      fft > 0.9 alone   → manipulated (AI-generated catch)
+      both > 0.5        → manipulated
+      either > 0.5      → suspicious
+      else              → authentic
     """
     if fft_conf > 0.9 and tf_conf > 0.5:
         return "manipulated"
     elif fft_conf > 0.9:
-        return "manipulated"       # FFT alone is enough — catches AI-generated images
+        return "manipulated"
     elif tf_conf > 0.5 and fft_conf > 0.5:
         return "manipulated"
     elif tf_conf > 0.5 or fft_conf > 0.5:
@@ -192,16 +208,17 @@ def _get_verdict(tf_conf: float, fft_conf: float) -> str:
 
 
 # ── MAIN PREDICT FUNCTION ──────────────────────────────────────────────────────
+
 def predict(image_bytes: bytes) -> dict:
     """
     Run both models on the image and return combined verdict.
 
     Returns:
         {
-            "result":          "authentic" | "suspicious" | "manipulated",
-            "tf_confidence":   float (0-100),
-            "fft_confidence":  float (0-100),
-            "combined_score":  float (0-100),
+            "result":             "authentic" | "suspicious" | "manipulated",
+            "tf_confidence":      float (0-100),
+            "fft_confidence":     float (0-100),
+            "combined_score":     float (0-100),
             "processing_time_ms": int
         }
     """
@@ -234,7 +251,7 @@ def predict(image_bytes: bytes) -> dict:
     # ── Verdict
     verdict = _get_verdict(tf_conf, fft_conf)
 
-    # Combined score: weighted average (FFT weighted higher for AI detection)
+    # Combined score — FFT weighted higher (55%) for AI detection
     combined_score = (tf_conf * 0.45) + (fft_conf * 0.55)
 
     elapsed_ms = int((time.time() - start) * 1000)
